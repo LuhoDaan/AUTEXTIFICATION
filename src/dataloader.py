@@ -32,25 +32,21 @@ class FullDataloader(Dataset):
             tokeniser: PreTrainedTokenizer,
             corpora_path: Optional[str],
             corpus_list: Optional[List[str]],
-            corpus_prefix = "NLPdataset"):
+            corpus_prefix = "NLPdataset",
+            task: str = 'mono'):
 
         self.corpora_path = corpora_path
         self.split = split
-        self.corpus_cache_file_path: str = os.path.join(cache_dir_path, f'{corpus_prefix}_{split}.pbz2')
+        self.corpus_cache_file_path: str = os.path.join(cache_dir_path, f'{corpus_prefix}_{split}_{task}.pbz2')
         self.tokenizer = tokeniser
         self.data: List[Dict]
         self.corpus_list = corpus_list
-
+        self.task = task
 
         if os.path.exists(self.corpus_cache_file_path):
             self._load_data_from_cache()
         else:
             self._prepare_data()
-
-
-
-
-
 
     def __len__(self) -> int:
         # Number of sequences within the src set
@@ -67,7 +63,8 @@ class FullDataloader(Dataset):
         corpora: List[Corpus] = [
             CORPORA[corpus_id](
                 self.split,
-                self.corpora_path
+                self.corpora_path,
+                self.task
             )
             for corpus_id in self.corpus_list
         ]
@@ -83,8 +80,6 @@ class FullDataloader(Dataset):
 
         self.labels_to_int()
 
-
-
         # Cache loaded src
         with bz2.BZ2File(self.corpus_cache_file_path, 'wb') as f:
             pickle.dump(self.data, f)
@@ -96,28 +91,75 @@ class FullDataloader(Dataset):
 
     def collate(
             self, data_for_batches: List[Dict]
-    ) -> tuple[BatchEncoding, Tensor]:
-        # Inputs
-        input_encodings = self.tokenizer(
-            [item['text'] for item in data_for_batches],
-            return_tensors='pt',
-            padding=True
-        )
-        # Target outputs
-        labels = torch.tensor([item['label'] for item in data_for_batches])
+    ):
 
-        return input_encodings, labels
+        if self.task == 'mono':
+            # Inputs
+            input_encodings = self.tokenizer(
+                [item['text'] for item in data_for_batches],
+                return_tensors='pt',
+                padding=True
+            )
+            # Target outputs
+            labels = torch.tensor([item['label'] for item in data_for_batches])
+
+            return input_encodings, labels
+
+        elif self.task == 'multi':
+            # Inputs
+            input_encodings = self.tokenizer(
+                [item['text'] for item in data_for_batches],
+                return_tensors='pt',
+                padding=True
+            )
+            # Target outputs
+            origin = torch.tensor([item['origin'] for item in data_for_batches])
+            bot = torch.tensor([item['bot'] for item in data_for_batches])
+            language = torch.tensor([item['language'] for item in data_for_batches])
+
+
+            return input_encodings, origin, bot, language
 
     def labels_to_int(self):
 
         for item in self.data:
-            if item['label'] == 'human':
-                item['label'] = 0
-            else:
-                item['label'] = 1
+            if 'label' in item:
+                if item['label'] == 'human':
+                    item['label'] = 0
+                else:
+                    item['label'] = 1
+            if 'origin' in item:
+                if item['origin'] == 'human':
+                    item['origin'] = 0
+                else:
+                    item['origin'] = 1
+            if 'bot' in item:
+                if item['bot'] is not None:
+                    if item['bot'] == 'A':
+                        item['bot'] = 0
+                    elif item['bot'] == 'B':
+                        item['bot'] = 1
+                    elif item['bot'] == 'C':
+                        item['bot'] = 2
+                    elif item['bot'] == 'D':
+                        item['bot'] = 3
+                    elif item['bot'] == 'E':
+                        item['bot'] = 4
+                    elif item['bot'] == 'F':
+                        item['bot'] = 5
+                    elif item['bot'] == 'human-generated':
+                        item['bot'] = 6
+                else:
+                    item['bot'] = -1
+            if 'language' in item:
+                if item['language'] == 'en':
+                    item['language'] = 0
+                else:
+                    item['language'] = 1
 
 
-'''
+
+
 tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
 model = AutoModel.from_pretrained('gpt2')
 
@@ -127,8 +169,20 @@ tokenizer.add_special_tokens({'cls_token': '<|cls|>'})
 
 model.resize_token_embeddings(new_num_tokens=len(tokenizer))
 # Extend model
-test = FullDataloader('train', '/src/cache', tokenizer, '/src/rawData', corpus_list=['autextication'])
+test = FullDataloader('test', '/home/matteo/PycharmProjects/AUTEXTIFICATION/src/cache', tokenizer, '/home/matteo/PycharmProjects/AUTEXTIFICATION/src/rawData', corpus_list=['autextication'], task='multi')
 
+
+
+#test_loader = DataLoader(test, batch_size=1, shuffle=False, collate_fn=test.collate)
+
+test.collate(test.data)
+'''
+for batch_idx, batch in enumerate(test_loader):
+    input_encodings, origin, bot, language = batch
+    if language.item() == 5:
+        print(f"Batch {batch_idx}:\nInput encodings: {input_encodings}\nOrigin: {origin}\nLanguage: {language}\nBot: {bot}\n")
+'''
+'''
 test.collate(test.data)
 import collections
 

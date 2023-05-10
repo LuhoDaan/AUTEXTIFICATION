@@ -6,11 +6,13 @@ class Corpus(ABC):
     def __init__(
             self,
             split: Literal['train', 'validation', 'test'],
-            corpora_path: str
+            corpora_path: str,
+            task: str = 'mono'
 
     ):
         self.corpora_path = corpora_path
         self.split = split
+        self.task = task
 
     @property
     @abstractmethod
