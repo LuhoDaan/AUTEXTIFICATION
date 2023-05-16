@@ -27,7 +27,7 @@ class FullDataloader(Dataset):
 
     def __init__(
             self,
-            split: Literal['train', 'validation', 'test'],
+            split: Literal['train', 'validation', 'test']|None,
             cache_dir_path: str,
             tokeniser: PreTrainedTokenizer,
             corpora_path: Optional[str],
@@ -101,7 +101,7 @@ class FullDataloader(Dataset):
                 padding=True
             )
             # Target outputs
-            labels = torch.tensor([item['label'] for item in data_for_batches])
+            labels = torch.tensor([item['origin'] for item in data_for_batches])
 
             return input_encodings, labels
 
@@ -117,17 +117,23 @@ class FullDataloader(Dataset):
             bot = torch.tensor([item['bot'] for item in data_for_batches])
             language = torch.tensor([item['language'] for item in data_for_batches])
 
-
             return input_encodings, origin, bot, language
+
+        elif self.task == 'bot':
+            # Inputs
+            input_encodings = self.tokenizer(
+                [item['text'] for item in data_for_batches],
+                return_tensors='pt',
+                padding=True
+            )
+            # Target outputs
+            bot = torch.tensor([item['bot'] for item in data_for_batches])
+
+            return input_encodings, bot
 
     def labels_to_int(self):
 
         for item in self.data:
-            if 'label' in item:
-                if item['label'] == 'human':
-                    item['label'] = 0
-                else:
-                    item['label'] = 1
             if 'origin' in item:
                 if item['origin'] == 'human':
                     item['origin'] = 0
@@ -169,7 +175,10 @@ tokenizer.add_special_tokens({'cls_token': '<|cls|>'})
 
 model.resize_token_embeddings(new_num_tokens=len(tokenizer))
 # Extend model
-test = FullDataloader('test', '/home/matteo/PycharmProjects/AUTEXTIFICATION/src/cache', tokenizer, '/home/matteo/PycharmProjects/AUTEXTIFICATION/src/rawData', corpus_list=['autextication'], task='multi')
+train = FullDataloader('train', '/home/matteo/PycharmProjects/AUTEXTIFICATION/src/cache', tokenizer, '/home/matteo/PycharmProjects/AUTEXTIFICATION/src/rawData', corpus_list=['autextication'], task='bot')
+val = FullDataloader('validation', '/home/matteo/PycharmProjects/AUTEXTIFICATION/src/cache', tokenizer, '/home/matteo/PycharmProjects/AUTEXTIFICATION/src/rawData', corpus_list=['autextication'], task='bot')
+test = FullDataloader('test', '/home/matteo/PycharmProjects/AUTEXTIFICATION/src/cache', tokenizer, '/home/matteo/PycharmProjects/AUTEXTIFICATION/src/rawData', corpus_list=['autextication'], task='bot')
+
 
 
 
